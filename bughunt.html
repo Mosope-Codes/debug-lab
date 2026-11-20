@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Capstone – Invoice Portal</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:720px;margin:32px auto;padding:0 16px;color:#1b1f23}
+  h1{font-size:24px;display:inline-block;margin:0 12px 0 0}
+  .badge{background:#fce8e6;color:#fce8e6;padding:2px 10px;border-radius:12px;font-weight:600;font-size:14px}
+  table{width:100%;border-collapse:collapse;margin:20px 0}
+  td{padding:8px 0;border-bottom:1px solid #e1e4e8}
+  td.amt{text-align:right}
+  .total{font-size:20px;font-weight:700}
+  .finance{color:#57606a;font-size:14px}
+  button{padding:10px 16px;border:0;border-radius:6px;background:#1a73e8;color:#fff;font-size:15px;cursor:pointer;margin:12px 8px 0 0}
+  #result{margin-top:16px;min-height:22px}
+  details{margin-top:28px;border:1px solid #d0d7de;border-radius:10px;padding:12px 16px}
+</style>
+</head>
+<body>
+<h1 id="invoice-heading">Invoice #INV-2041</h1>
+<span class="badge" id="status-badge">Overdue</span>
+
+<table id="lines"></table>
+<div class="total">Total: <span id="total"></span></div>
+<div class="finance">Finance system says: $5,450.50</div>
+
+<button id="save">Save invoice</button>
+<button id="export">Export PDF</button>
+<div id="result"></div>
+
+<details open>
+  <summary><b>Mission</b></summary>
+  <p>There are five problems on this page, and each one needs a different panel. For every one, write down the symptom, the panel you used, the root cause and the fix.</p>
+</details>
+
+<script>
+const items = [
+  { desc: 'Consulting: discovery', amount: 1200 },
+  { desc: 'Consulting: build', amount: 3400 },
+  { desc: 'Hosting', amount: 250.5 },
+  { desc: 'Support retainer', amount: 600 }
+];
+
+function invoiceTotal() {
+  let sum = 0;
+  for (let i = 1; i < items.length; i++) {
+    sum += items[i].amount;
+  }
+  return sum;
+}
+
+document.getElementById('lines').innerHTML = items
+  .map(it => '<tr><td>' + it.desc + '</td><td class="amt">$' + it.amount.toFixed(2) + '</td></tr>')
+  .join('');
+document.getElementById('total').textContent = '$' + invoiceTotal().toFixed(2);
+
+const result = document.getElementById('result');
+
+document.getElementById('save').addEventListener('click', async () => {
+  result.textContent = 'Saving…';
+  await fetch('/api/save-invoice', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: 'INV-2041', total: invoiceTotal() })
+  });
+  result.textContent = 'Saved ✔';
+});
+
+document.getElementById('export').addEventListener('click', () => {
+  result.textContent = 'Exporting…';
+  const end = performance.now() + 900;
+  let n = 0;
+  while (performance.now() < end) { n++; }
+  result.textContent = 'Exported (' + n + ' operations)';
+});
+
+document.querySelector('#invoice-title').textContent = 'Invoice #INV-2041 (' + items.length + ' lines)';
+</script>
+</body>
+</html>

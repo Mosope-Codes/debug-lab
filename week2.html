@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Week 2 Lab – Ops Dashboard</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:960px;margin:32px auto;padding:0 16px;color:#1b1f23;background:#fafafa}
+  h1{font-size:24px;margin-bottom:4px}
+  .sub{color:#57606a;margin-top:0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:20px}
+  .card{background:#fff;border:1px solid #d0d7de;border-radius:10px;padding:16px}
+  .card h2{font-size:14px;margin:0 0 8px;color:#57606a;text-transform:uppercase;letter-spacing:.04em}
+  .state{font-size:18px;font-weight:600;min-height:26px}
+  .state.err{color:#b3261e}
+  .state.ok{color:#137333}
+  .meta{font-size:13px;color:#57606a;margin-top:6px;word-break:break-word}
+  button{padding:8px 14px;border:0;border-radius:6px;background:#1a73e8;color:#fff;font-size:14px;cursor:pointer;margin:2px 4px 2px 0}
+  button.alt{background:#5f6368}
+  details{background:#fff;border:1px solid #d0d7de;border-radius:10px;padding:12px 16px;margin-top:20px}
+  li{margin:6px 0}
+</style>
+</head>
+<body>
+<h1>Ops Dashboard</h1>
+<p class="sub">Seven widgets, each backed by an API. Some of them are not behaving.</p>
+
+<div>
+  <button id="reload">Reload all</button>
+  <button id="refresh-cached" class="alt">Refresh cached widget</button>
+  <button id="retry" class="alt">Retry flaky widget</button>
+  <button id="bad-deploy" class="alt">Simulate a bad deploy (storage)</button>
+</div>
+
+<div class="grid">
+  <section class="card" id="users"><h2>Users</h2><div class="state">…</div><div class="meta"></div></section>
+  <section class="card" id="orders"><h2>Orders</h2><div class="state">…</div><div class="meta"></div></section>
+  <section class="card" id="report"><h2>Monthly report</h2><div class="state">…</div><div class="meta"></div></section>
+  <section class="card" id="profile"><h2>Profile</h2><div class="state">…</div><div class="meta"></div></section>
+  <section class="card" id="stats"><h2>Live stats</h2><div class="state">…</div><div class="meta"></div></section>
+  <section class="card" id="cached"><h2>Config version</h2><div class="state">…</div><div class="meta"></div></section>
+  <section class="card" id="flaky"><h2>Payments gateway</h2><div class="state">…</div><div class="meta"></div></section>
+</div>
+
+<details open>
+  <summary><b>Lab tasks</b> (open DevTools first, then work through them)</summary>
+  <ol>
+    <li>Users says "0 users". What does the Network panel say about that request?</li>
+    <li>Orders takes a long time. Is it the network or the server? Use the Timing tab.</li>
+    <li>Monthly report just says "unavailable". Find the server's actual error message.</li>
+    <li>Profile shows "undefined". Compare what the server sent with what the page reads.</li>
+    <li>Live stats fails. What do the Console and Network panels each tell you? Which side has to change?</li>
+    <li>Config version never changes when you refresh. Why? Check the Size column, then use Disable cache.</li>
+    <li>Payments gateway fails once. Use Preserve log, then Copy as fetch, and replay the call from the Console.</li>
+    <li>Set throttling to Slow 4G and reload. Then block the orders request and see how the page copes.</li>
+    <li>Application panel: click "Simulate a bad deploy", reload, and find what broke. Also find the session cookie.</li>
+  </ol>
+</details>
+
+<script>
+const OTHER_ORIGIN = 'http://localhost:3001';
+let attempt = 1;
+
+function setState(id, text, cls, meta) {
+  const card = document.getElementById(id);
+  const state = card.querySelector('.state');
+  state.textContent = text;
+  state.className = 'state' + (cls ? ' ' + cls : '');
+  card.querySelector('.meta').textContent = meta || '';
+}
+
+async function getJSON(url) {
+  const res = await fetch(url);
+  const body = await res.json().catch(() => null);
+  return { ok: res.ok, status: res.status, body: body };
+}
+
+async function loadUsers() {
+  setState('users', 'Loading…');
+  const r = await getJSON('/api/users');
+  const list = r.body;
+  setState('users', (list.length || 0) + ' users', 'ok');
+}
+
+async function loadOrders() {
+  setState('orders', 'Loading…');
+  const r = await getJSON('/api/orders');
+  setState('orders', r.body.count + ' orders', 'ok', 'Revenue: $' + r.body.revenue.toLocaleString());
+}
+
+async function loadReport() {
+  setState('report', 'Loading…');
+  const r = await getJSON('/api/report');
+  if (!r.ok) {
+    setState('report', 'Report unavailable', 'err');
+    return;
+  }
+  setState('report', 'Ready', 'ok');
+}
+
+async function loadProfile() {
+  setState('profile', 'Loading…');
+  const r = await getJSON('/api/profile');
+  setState('profile', r.body.fullName + ' (' + r.body.role + ')', 'ok');
+}
+
+async function loadStats() {
+  setState('stats', 'Loading…');
+  try {
+    const res = await fetch(OTHER_ORIGIN + '/api/stats');
+    const body = await res.json();
+    setState('stats', body.activeSessions + ' active sessions', 'ok');
+  } catch (e) {
+    setState('stats', 'Stats unavailable', 'err');
+  }
+}
+
+async function loadCached() {
+  setState('cached', 'Loading…');
+  const r = await getJSON('/api/cached');
+  setState('cached', 'v' + r.body.version, 'ok', 'Served at ' + r.body.servedAt);
+}
+
+async function loadFlaky() {
+  setState('flaky', 'Loading…');
+  const r = await getJSON('/api/flaky?attempt=' + attempt);
+  if (!r.ok) {
+    setState('flaky', 'Gateway failed', 'err', 'Attempt ' + attempt);
+    return;
+  }
+  setState('flaky', 'Gateway OK', 'ok', 'Attempt ' + attempt);
+}
+
+function loadAll() {
+  attempt = 1;
+  loadUsers();
+  loadOrders();
+  loadReport();
+  loadProfile();
+  loadStats();
+  loadCached();
+  loadFlaky();
+}
+
+function initPrefs() {
+  const raw = localStorage.getItem('prefs');
+  if (raw === null) return;
+  const prefs = JSON.parse(raw);
+  document.body.style.background = prefs.bg || '';
+}
+
+document.getElementById('reload').addEventListener('click', loadAll);
+document.getElementById('refresh-cached').addEventListener('click', loadCached);
+document.getElementById('retry').addEventListener('click', () => { attempt += 1; loadFlaky(); });
+document.getElementById('bad-deploy').addEventListener('click', () => {
+  localStorage.setItem('prefs', '{bg:#eef');
+  alert('Stored. Now reload the page.');
+});
+
+loadAll();
+initPrefs();
+</script>
+</body>
+</html>

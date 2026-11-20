@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Week 3 Lab – Product Explorer</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:900px;margin:24px auto;padding:0 16px;color:#1b1f23}
+  h1{font-size:24px;margin:0 0 4px}
+  section{border:1px solid #d0d7de;border-radius:10px;padding:16px;margin:16px 0}
+  h2{font-size:16px;margin:0 0 8px}
+  input[type=search]{width:100%;padding:10px;font-size:16px;box-sizing:border-box}
+  ul#results{height:180px;overflow:auto;margin:8px 0 0;padding-left:20px;font-size:13px}
+  .banner{background:#fff4ce;border:1px solid #f2c94c;padding:20px;border-radius:8px;margin:12px 0}
+  .minis{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+  .mini{background:#e8f0fe;border-radius:4px;padding:6px;font-size:11px;min-width:60px}
+  button{padding:8px 14px;border:0;border-radius:6px;background:#1a73e8;color:#fff;font-size:14px;cursor:pointer;margin:2px 4px 2px 0}
+  .modal{position:fixed;right:24px;bottom:24px;background:#fff;border:1px solid #888;border-radius:8px;padding:16px;box-shadow:0 4px 20px rgba(0,0,0,.2)}
+  .note{font-size:13px;color:#57606a}
+</style>
+</head>
+<body>
+<h1>Product Explorer</h1>
+<p class="note">Three things feel off on this page: typing, resizing and opening details. Measure first, then fix.</p>
+<div id="banner-slot"></div>
+
+<section>
+  <h2>1. Search 5,000 products</h2>
+  <input id="search" type="search" placeholder="Type to filter, e.g. lamp" autocomplete="off">
+  <div class="note" id="count"></div>
+  <ul id="results"></ul>
+</section>
+
+<section>
+  <h2>2. Cards</h2>
+  <button id="resize">Resize all cards</button>
+  <span class="note" id="resize-status"></span>
+  <div class="minis" id="minis"></div>
+</section>
+
+<section>
+  <h2>3. Details panel</h2>
+  <button id="open">Open details</button>
+  <button id="leak10">Open and close 10 times</button>
+  <span class="note" id="cycles">0 cycles</span>
+</section>
+
+<script>
+const WORDS = ['lamp', 'chair', 'desk', 'cable', 'monitor', 'keyboard', 'mouse', 'router', 'speaker', 'camera'];
+const products = Array.from({ length: 5000 }, (_, i) => ({ id: i, name: 'Product ' + i + ' ' + WORDS[i % WORDS.length] }));
+
+const results = document.getElementById('results');
+const search = document.getElementById('search');
+const countEl = document.getElementById('count');
+
+function scoreMatches(query) {
+  // stand-in for expensive relevance ranking
+  const end = performance.now() + 150;
+  let x = 0;
+  while (performance.now() < end) { x += Math.sqrt(x + query.length); }
+  return x;
+}
+
+function highlight(name, q) {
+  if (!q) return name;
+  const i = name.toLowerCase().indexOf(q);
+  if (i < 0) return name;
+  return name.slice(0, i) + '<mark>' + name.slice(i, i + q.length) + '</mark>' + name.slice(i + q.length);
+}
+
+function render(query) {
+  const q = query.toLowerCase();
+  scoreMatches(q);
+  const matches = products.filter(p => p.name.toLowerCase().includes(q));
+  results.innerHTML = matches.map(p => '<li>' + highlight(p.name, q) + '</li>').join('');
+  countEl.textContent = matches.length + ' of ' + products.length + ' products';
+}
+
+search.addEventListener('input', e => render(e.target.value));
+render('');
+
+// Cards
+const minis = document.getElementById('minis');
+for (let i = 0; i < 800; i++) {
+  const d = document.createElement('div');
+  d.className = 'mini';
+  d.textContent = 'Card ' + i;
+  minis.appendChild(d);
+}
+document.getElementById('resize').addEventListener('click', () => {
+  const cards = document.querySelectorAll('.mini');
+  let total = 0;
+  const t0 = performance.now();
+  cards.forEach((c, i) => {
+    c.style.width = (60 + (i % 7) * 12) + 'px';
+    total += c.offsetHeight;
+  });
+  document.getElementById('resize-status').textContent =
+    ' Resized ' + cards.length + ' cards in ' + Math.round(performance.now() - t0) + ' ms (total height ' + total + ')';
+});
+
+// Details panel
+let cycles = 0;
+function openDetails() {
+  const data = Array.from({ length: 20000 }, (_, i) => ({ id: i, label: 'row ' + i }));
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.innerHTML = '<p>Details (' + data.length + ' rows)</p><button class="close">Close</button>';
+  document.body.appendChild(modal);
+
+  const onResize = () => {
+    modal.querySelector('p').textContent = 'Details (' + data.length + ' rows) at ' + window.innerWidth + 'px';
+  };
+  window.addEventListener('resize', onResize);
+
+  const close = () => {
+    modal.remove();
+    (window.__closedPanels = window.__closedPanels || []).push(modal);
+    cycles += 1;
+    document.getElementById('cycles').textContent = cycles + ' cycles';
+  };
+  modal.querySelector('.close').addEventListener('click', close);
+  return modal;
+}
+document.getElementById('open').addEventListener('click', openDetails);
+document.getElementById('leak10').addEventListener('click', () => {
+  for (let i = 0; i < 10; i++) {
+    openDetails().querySelector('.close').click();
+  }
+});
+
+setTimeout(() => {
+  document.getElementById('banner-slot').innerHTML =
+    '<div class="banner"><b>Spring sale:</b> 20% off everything this week.</div>';
+}, 1500);
+</script>
+</body>
+</html>
